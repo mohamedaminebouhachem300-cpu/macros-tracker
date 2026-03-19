@@ -5,6 +5,7 @@ import { FoodItem, MealCategory, LogEntry } from '@/types/food';
 import { calculateMacros } from '@/lib/macro-calculator';
 import { useMacroContext } from '@/context/MacroContext';
 import { Search, X, Plus } from 'lucide-react';
+import AddFoodModal from './AddFoodModal';
 
 export default function FoodSearch() {
   const [query, setQuery] = useState('');
@@ -12,8 +13,6 @@ export default function FoodSearch() {
   const [filteredFoods, setFilteredFoods] = useState<FoodItem[]>([]);
   
   const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
-  const [weight, setWeight] = useState<number>(100);
-  const [mealCategory, setMealCategory] = useState<MealCategory>('Breakfast');
 
   const { addLogEntry } = useMacroContext();
 
@@ -40,7 +39,7 @@ export default function FoodSearch() {
     setFilteredFoods(filtered.slice(0, 50));
   }, [query, foods]);
 
-  const handleAdd = () => {
+  const handleAdd = (weight: number, mealCategory: MealCategory) => {
     if (!selectedFood || weight <= 0) return;
     
     const macros = calculateMacros(selectedFood, weight);
@@ -59,7 +58,6 @@ export default function FoodSearch() {
 
     addLogEntry(entry);
     setSelectedFood(null);
-    setWeight(100);
   };
 
   return (
@@ -120,61 +118,12 @@ export default function FoodSearch() {
 
       {/* Modal Overlay */}
       {selectedFood && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedFood(null)}>
-          <div 
-            className="bg-[#1e293b] p-8 rounded-[20px] w-full max-w-sm border border-slate-700/60 shadow-2xl relative animate-fade-in-up" 
-            onClick={e => e.stopPropagation()}
-          >
-            <button 
-              className="absolute top-5 right-5 text-slate-400 hover:text-white transition-colors p-2 bg-[#0f172a] rounded-full hover:bg-rose-500"
-              onClick={() => setSelectedFood(null)}
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-center gap-5 mb-8 mt-2">
-              <span className="text-6xl leading-none drop-shadow-lg">{selectedFood.emoji}</span>
-              <div>
-                <h3 className="text-2xl font-bold text-slate-100 leading-tight">{selectedFood.english_name}</h3>
-                <p className="text-sm text-slate-400 mt-1">{selectedFood.kcal_per_100g} kcal / 100g</p>
-              </div>
-            </div>
-            
-            <div className="space-y-5 mb-8">
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Weight (grams)</label>
-                <input 
-                  type="number"
-                  min="1"
-                  value={weight}
-                  onChange={(e) => setWeight(Number(e.target.value))}
-                  className="w-full px-4 py-4 bg-[#0f172a] border border-slate-700/60 rounded-[12px] text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all font-mono text-lg"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Meal</label>
-                <select 
-                  value={mealCategory}
-                  onChange={(e) => setMealCategory(e.target.value as MealCategory)}
-                  className="w-full px-4 py-4 bg-[#0f172a] border border-slate-700/60 rounded-[12px] text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all appearance-none text-lg font-medium"
-                >
-                  <option value="Breakfast">🌅 Breakfast</option>
-                  <option value="Lunch">☀️ Lunch</option>
-                  <option value="Dinner">🌙 Dinner</option>
-                  <option value="Snack">🍿 Snack</option>
-                </select>
-              </div>
-            </div>
-
-            <button 
-              onClick={handleAdd}
-              className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white font-bold py-4 rounded-[12px] transition-all shadow-lg shadow-emerald-500/20 text-lg active:scale-[0.98]"
-            >
-              Add to Log
-            </button>
-          </div>
-        </div>
+        <AddFoodModal 
+          food={selectedFood}
+          isOpen={!!selectedFood}
+          onClose={() => setSelectedFood(null)}
+          onAdd={handleAdd}
+        />
       )}
     </div>
   );
