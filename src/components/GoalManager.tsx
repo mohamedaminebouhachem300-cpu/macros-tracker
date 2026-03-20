@@ -15,6 +15,10 @@ export default function GoalManager() {
   const [carbsPct, setCarbsPct] = useState(40);
   const [fatsPct, setFatsPct] = useState(30);
 
+  // Track the order of slider moves to determine which one is the "automatic" third
+  // The first element is the "remainder" macro (the victim)
+  const [touchedOrder, setTouchedOrder] = useState<('protein' | 'carbs' | 'fats')[]>(['fats', 'carbs', 'protein']);
+
   // Initialize percentages from absolute goals if possible
   useEffect(() => {
     if (userGoals.calories > 0) {
@@ -26,12 +30,56 @@ export default function GoalManager() {
     }
   }, [userGoals]);
 
-  const handlePctChange = (type: 'protein' | 'carbs' | 'fats', val: number) => {
-    // Optional: auto-balance the other two, but for simplicity we just allow manual balancing or limit it.
-    // We'll just set it.
-    if (type === 'protein') setProteinPct(val);
-    if (type === 'carbs') setCarbsPct(val);
-    if (type === 'fats') setFatsPct(val);
+  const handlePctChange = (type: 'protein' | 'carbs' | 'fats', newVal: number) => {
+    // 1. Determine "victim" macro (the one that moves automatically)
+    // The victim is the macro that is NOT the current "type" and was touched longest ago
+    const remainder = touchedOrder.find(m => m !== type)!;
+
+    // 2. Minimum Floor Constraints (10g)
+    const minP = (10 * 4 / calories) * 100;
+    const minC = (10 * 4 / calories) * 100;
+    const minF = (10 * 9 / calories) * 100;
+
+    const minVals = { protein: minP, carbs: minC, fats: minF };
+    
+    // Get current values
+    const current = { protein: proteinPct, carbs: carbsPct, fats: fatsPct };
+    const oldVal = current[type];
+    const diff = newVal - oldVal;
+
+    // Calculate proposed remainder value
+    let newRemainderVal = current[remainder] - diff;
+
+    // Apply constraints
+    let finalNewVal = newVal;
+    let finalRemainderVal = newRemainderVal;
+
+    // If remainder would drop below floor, cap the change
+    if (newRemainderVal < minVals[remainder]) {
+      finalRemainderVal = minVals[remainder];
+      finalNewVal = current[type] + (current[remainder] - minVals[remainder]);
+    }
+    
+    // If current would drop below floor (shouldn't happen with slider min, but for safety)
+    if (finalNewVal < minVals[type]) {
+      finalNewVal = minVals[type];
+      finalRemainderVal = current[remainder] + (current[type] - minVals[type]);
+    }
+
+    // 3. Update State
+    if (type === 'protein') setProteinPct(finalNewVal);
+    if (type === 'carbs') setCarbsPct(finalNewVal);
+    if (type === 'fats') setFatsPct(finalNewVal);
+
+    if (remainder === 'protein') setProteinPct(finalRemainderVal);
+    if (remainder === 'carbs') setCarbsPct(finalRemainderVal);
+    if (remainder === 'fats') setFatsPct(finalRemainderVal);
+
+    // 4. Update Touched Order (move current type to the end)
+    setTouchedOrder(prev => {
+      const filtered = prev.filter(m => m !== type);
+      return [...filtered, type];
+    });
   };
 
   const handleSave = () => {
@@ -99,10 +147,10 @@ export default function GoalManager() {
                 <span className="text-2xl font-black text-white">{proteinPct}%</span>
               </div>
               <input 
-                type="range" min="0" max="100" step="5"
+                type="range" min="0" max="100" step="1"
                 value={proteinPct}
                 onChange={(e) => handlePctChange('protein', Number(e.target.value))}
-                className="w-full"
+                className="w-full accent-emerald-500"
               />
               <div className="flex justify-between text-xs font-mono mt-3 uppercase tracking-wider">
                 <span className="text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-md">≈ {Math.round((calories * (proteinPct / 100)) / 4)}g per day</span>
@@ -117,10 +165,10 @@ export default function GoalManager() {
                 <span className="text-2xl font-black text-white">{carbsPct}%</span>
               </div>
               <input 
-                type="range" min="0" max="100" step="5"
+                type="range" min="0" max="100" step="1"
                 value={carbsPct}
                 onChange={(e) => handlePctChange('carbs', Number(e.target.value))}
-                className="w-full"
+                className="w-full accent-amber-500"
               />
               <div className="flex justify-between text-xs font-mono mt-3 uppercase tracking-wider">
                 <span className="text-amber-500 bg-amber-500/10 px-2 py-1 rounded-md">≈ {Math.round((calories * (carbsPct / 100)) / 4)}g per day</span>
@@ -135,10 +183,10 @@ export default function GoalManager() {
                 <span className="text-2xl font-black text-white">{fatsPct}%</span>
               </div>
               <input 
-                type="range" min="0" max="100" step="5"
+                type="range" min="0" max="100" step="1"
                 value={fatsPct}
                 onChange={(e) => handlePctChange('fats', Number(e.target.value))}
-                className="w-full"
+                className="w-full accent-rose-500"
               />
               <div className="flex justify-between text-xs font-mono mt-3 uppercase tracking-wider">
                 <span className="text-rose-500 bg-rose-500/10 px-2 py-1 rounded-md">≈ {Math.round((calories * (fatsPct / 100)) / 9)}g per day</span>
