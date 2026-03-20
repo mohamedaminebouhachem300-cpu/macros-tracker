@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useMacroContext } from '@/context/MacroContext';
 import { Settings2 } from 'lucide-react';
+
+const MIN_GRAMS = 10;
 
 export default function GoalManager() {
   const { userGoals, updateUserGoals } = useMacroContext();
   
-  // Local state for sliders before saving
+  // Local state for goals before saving
   const [calories, setCalories] = useState(userGoals.calories);
   
   // Macros in Grams
@@ -106,8 +108,8 @@ export default function GoalManager() {
           <input 
             type="range" min="1200" max="4000" step="50"
             value={calories}
-            onChange={(e) => setCalories(Number(e.target.value))}
-            className="w-full"
+            onChange={(e) => handleCalorieChange(Number(e.target.value))}
+            className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
           />
           <div className="flex justify-between text-xs text-slate-500 font-mono mt-2">
             <span>1,200 kcal</span>
