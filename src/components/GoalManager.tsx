@@ -1,11 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react'; // Removed unused useRef
+import React, { useState, useEffect } from 'react';
 import { useMacroContext } from '@/context/MacroContext';
 import { Settings2 } from 'lucide-react';
 
-// Keep this only if it's used in the logic below, 
-// otherwise the build will fail again.
 const MIN_VALUE = 10; 
 
 export default function GoalManager() {
@@ -46,14 +44,13 @@ export default function GoalManager() {
   const { p: proteinPct, c: carbsPct, f: fatsPct } = calculatePercentages();
 
   const handleMacroChange = (type: 'protein' | 'carbs' | 'fats', newVal: number) => {
-    const others = ['protein', 'carbs', 'fats'].filter(m => m !== type) as ('protein' | 'carbs' | 'fats')[];
+    const others = (['protein', 'carbs', 'fats'] as const).filter(m => m !== type);
     const victim = others.find(m => !lastUpdated.includes(m)) || others[0];
     const secondRecent = others.find(m => m !== victim)!;
 
     const currentVals = { protein, carbs, fats };
-    const multipliers = { protein: 4, carbs: 4, fats: 9 };
+    const multipliers: Record<'protein' | 'carbs' | 'fats', number> = { protein: 4, carbs: 4, fats: 9 };
     
-    // Fixed: Using const for values that don't need reassignment
     const finalNewVal = newVal;
     const remainingAfterNew = calories - (finalNewVal * multipliers[type]);
     
@@ -75,9 +72,9 @@ export default function GoalManager() {
       [secondRecent]: Math.round(secondRecentVal)
     };
 
-    setProtein(updates.protein ?? protein);
-    setCarbs(updates.carbs ?? carbs);
-    setFats(updates.fats ?? fats);
+    if (updates.protein !== undefined) setProtein(updates.protein);
+    if (updates.carbs !== undefined) setCarbs(updates.carbs);
+    if (updates.fats !== undefined) setFats(updates.fats);
 
     setLastUpdated(prev => {
       if (prev[1] === type) return prev;
@@ -100,7 +97,7 @@ export default function GoalManager() {
   };
 
   const getMax = (type: 'protein' | 'carbs' | 'fats') => {
-    const multipliers = { protein: 4, carbs: 4, fats: 9 };
+    const multipliers: Record<'protein' | 'carbs' | 'fats', number> = { protein: 4, carbs: 4, fats: 9 };
     const others = (['protein', 'carbs', 'fats'] as const).filter(m => m !== type);
     const othersMinCal = others.reduce((acc, m) => acc + (MIN_VALUE * multipliers[m]), 0);
     return Math.floor((calories - othersMinCal) / multipliers[type]);
@@ -119,12 +116,11 @@ export default function GoalManager() {
       </div>
 
       <div className="space-y-4">
-        {/* CALORIES SECTION */}
         <div className="bg-[#0f172a] p-4 rounded-[12px] border border-slate-700/30">
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Daily Calorie Target</p>
           <div className="flex justify-between items-end mb-4">
             <span className="text-lg font-bold text-slate-200">Calories</span>
-            <span className="text-2xl font-black text-white">{calories.toLocaleString()} <span className="text-sm text-slate-400">kcal</span></span>
+            <span className="text-2xl font-black text-white">{calories.toLocaleString()} <span className="text-sm text-slate-400 font-normal">kcal</span></span>
           </div>
           <input 
             type="range" min="1200" max="4000" step="50"
@@ -134,10 +130,8 @@ export default function GoalManager() {
           />
         </div>
 
-        {/* MACROS SECTION */}
         <div className="bg-[#0f172a] p-4 rounded-[12px] border border-slate-700/30">
           <div className="space-y-8">
-            {/* Protein Slider */}
             <div>
               <div className="flex justify-between items-center mb-3">
                 <span className="text-lg font-bold text-slate-200">Protein ({proteinPct}%)</span>
@@ -151,7 +145,6 @@ export default function GoalManager() {
               />
             </div>
 
-            {/* Carbs Slider */}
             <div className="pt-4 border-t border-slate-700/30">
               <div className="flex justify-between items-center mb-3">
                 <span className="text-lg font-bold text-slate-200">Carbs ({carbsPct}%)</span>
@@ -165,7 +158,6 @@ export default function GoalManager() {
               />
             </div>
 
-            {/* Fats Slider */}
             <div className="pt-4 border-t border-slate-700/30">
               <div className="flex justify-between items-center mb-3">
                 <span className="text-lg font-bold text-slate-200">Fats ({fatsPct}%)</span>
