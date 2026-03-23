@@ -12,6 +12,8 @@ export default function GoalManager() {
   const { userGoals, updateUserGoals } = useMacroContext();
   
   const [calories, setCalories] = useState(userGoals.calories);
+  
+  // Macros in Grams
   const [protein, setProtein] = useState(userGoals.protein);
   const [carbs, setCarbs] = useState(userGoals.carbs);
   const [fats, setFats] = useState(userGoals.fats);
@@ -19,10 +21,10 @@ export default function GoalManager() {
   const [lastUpdated, setLastUpdated] = useState<('protein' | 'carbs' | 'fats')[]>(['protein', 'carbs']);
 
   useEffect(() => {
-    setCalories(userGoals.calories);
     setProtein(userGoals.protein);
     setCarbs(userGoals.carbs);
     setFats(userGoals.fats);
+    setCalories(userGoals.calories);
   }, [userGoals]);
 
   const calculatePercentages = () => {
@@ -145,7 +147,7 @@ export default function GoalManager() {
                 type="range" min={MIN_VALUE} max={getMax('protein')} step="1"
                 value={protein}
                 onChange={(e) => handleMacroChange('protein', Number(e.target.value))}
-                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                className="w-full accent-emerald-500"
               />
             </div>
 
@@ -159,7 +161,7 @@ export default function GoalManager() {
                 type="range" min={MIN_VALUE} max={getMax('carbs')} step="1"
                 value={carbs}
                 onChange={(e) => handleMacroChange('carbs', Number(e.target.value))}
-                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                className="w-full accent-amber-500"
               />
             </div>
 
@@ -173,7 +175,7 @@ export default function GoalManager() {
                 type="range" min={MIN_VALUE} max={getMax('fats')} step="1"
                 value={fats}
                 onChange={(e) => handleMacroChange('fats', Number(e.target.value))}
-                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-rose-500"
+                className="w-full accent-rose-500"
               />
             </div>
           </div>
