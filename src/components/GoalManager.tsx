@@ -1,15 +1,16 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react'; // Removed unused useRef
 import { useMacroContext } from '@/context/MacroContext';
 import { Settings2 } from 'lucide-react';
 
-const MIN_GRAMS = 10;
+// Keep this only if it's used in the logic below, 
+// otherwise the build will fail again.
+const MIN_VALUE = 10; 
 
 export default function GoalManager() {
   const { userGoals, updateUserGoals } = useMacroContext();
   
-  // Local state for goals before saving
   const [calories, setCalories] = useState(userGoals.calories);
   
   // Macros in Grams
@@ -17,11 +18,8 @@ export default function GoalManager() {
   const [carbs, setCarbs] = useState(userGoals.carbs);
   const [fats, setFats] = useState(userGoals.fats);
 
-  // Track the order of slider moves to determine which one is the "automatic" third
-  // The first element is the "remainder" macro (the victim)
-  const [touchedOrder, setTouchedOrder] = useState<('protein' | 'carbs' | 'fats')[]>(['fats', 'carbs', 'protein']);
+  const [lastUpdated, setLastUpdated] = useState<('protein' | 'carbs' | 'fats')[]>(['protein', 'carbs']);
 
-  // Initialize grams from context
   useEffect(() => {
     setProtein(userGoals.protein);
     setCarbs(userGoals.carbs);
@@ -29,60 +27,84 @@ export default function GoalManager() {
     setCalories(userGoals.calories);
   }, [userGoals]);
 
+  const calculatePercentages = () => {
+    if (calories <= 0) return { p: 0, c: 0, f: 0 };
+    const p = Math.round((protein * 4 / calories) * 100);
+    const c = Math.round((carbs * 4 / calories) * 100);
+    const f = Math.round((fats * 9 / calories) * 100);
+    
+    const total = p + c + f;
+    if (total !== 100 && total > 0) {
+      const diff = 100 - total;
+      if (p >= c && p >= f) return { p: p + diff, c, f };
+      if (c >= p && c >= f) return { p, c: c + diff, f };
+      return { p, c, f: f + diff };
+    }
+    return { p, c, f };
+  };
+
+  const { p: proteinPct, c: carbsPct, f: fatsPct } = calculatePercentages();
+
   const handleMacroChange = (type: 'protein' | 'carbs' | 'fats', newVal: number) => {
-    const multipliers: Record<'protein' | 'carbs' | 'fats', number> = { protein: 4, carbs: 4, fats: 9 };
-    const current: Record<'protein' | 'carbs' | 'fats', number> = { protein, carbs, fats };
+    const others = ['protein', 'carbs', 'fats'].filter(m => m !== type) as ('protein' | 'carbs' | 'fats')[];
+    const victim = others.find(m => !lastUpdated.includes(m)) || others[0];
+    const secondRecent = others.find(m => m !== victim)!;
+
+    const currentVals = { protein, carbs, fats };
+    const multipliers = { protein: 4, carbs: 4, fats: 9 };
     
-    // 1. Determine "victim" macro
-    const remainder = touchedOrder.find((m: 'protein' | 'carbs' | 'fats') => m !== type)!;
-    const other = touchedOrder.find((m: 'protein' | 'carbs' | 'fats') => m !== type && m !== remainder)!;
-
-    // 2. Calculate constraints
-    const otherCal = current[other] * multipliers[other];
-    const availableCal = calories - otherCal;
-    const minRemainderGrams = 10;
-    const minRemainderCal = minRemainderGrams * multipliers[remainder];
+    // Fixed: Using const for values that don't need reassignment
+    const finalNewVal = newVal;
+    const remainingAfterNew = calories - (finalNewVal * multipliers[type]);
     
-    const maxTypeCal = availableCal - minRemainderCal;
-    const maxTypeGrams = Math.floor(maxTypeCal / multipliers[type]);
+    let victimVal = (remainingAfterNew - (currentVals[secondRecent] * multipliers[secondRecent])) / multipliers[victim];
+    let secondRecentVal = currentVals[secondRecent];
 
-    // 3. Clamp new value
-    let finalTypeVal = Math.max(10, Math.min(newVal, maxTypeGrams));
-    const typeCal = finalTypeVal * multipliers[type];
+    if (victimVal < MIN_VALUE) {
+      victimVal = MIN_VALUE;
+      secondRecentVal = (remainingAfterNew - (victimVal * multipliers[victim])) / multipliers[secondRecent];
+      
+      if (secondRecentVal < MIN_VALUE) {
+        secondRecentVal = MIN_VALUE;
+      }
+    }
 
-    // 4. Calculate remainder
-    const finalRemainderCal = calories - otherCal - typeCal;
-    const finalRemainderVal = Math.max(10, Math.round(finalRemainderCal / multipliers[remainder]));
+    const updates = {
+      [type]: Math.round(finalNewVal),
+      [victim]: Math.round(victimVal),
+      [secondRecent]: Math.round(secondRecentVal)
+    };
 
-    // 5. Update State
-    if (type === 'protein') setProtein(finalTypeVal);
-    if (type === 'carbs') setCarbs(finalTypeVal);
-    if (type === 'fats') setFats(finalTypeVal);
+    setProtein(updates.protein ?? protein);
+    setCarbs(updates.carbs ?? carbs);
+    setFats(updates.fats ?? fats);
 
-    if (remainder === 'protein') setProtein(finalRemainderVal);
-    if (remainder === 'carbs') setCarbs(finalRemainderVal);
-    if (remainder === 'fats') setFats(finalRemainderVal);
-
-    // 6. Update Touched Order
-    setTouchedOrder((prev: ('protein' | 'carbs' | 'fats')[]) => {
-      const filtered = prev.filter((m: string) => m !== type);
-      return [...filtered, type];
+    setLastUpdated(prev => {
+      if (prev[1] === type) return prev;
+      return [prev[1], type];
     });
+  };
+
+  const handleCalorieChange = (newCals: number) => {
+    setCalories(newCals);
+    const currentTotal = (protein * 4) + (carbs * 4) + (fats * 9);
+    const scale = newCals / currentTotal;
+    
+    setProtein(prev => Math.max(MIN_VALUE, Math.round(prev * scale)));
+    setCarbs(prev => Math.max(MIN_VALUE, Math.round(prev * scale)));
+    setFats(prev => Math.max(MIN_VALUE, Math.round(prev * scale)));
   };
 
   const handleSave = () => {
-    updateUserGoals({
-      calories,
-      protein,
-      carbs,
-      fats
-    });
+    updateUserGoals({ calories, protein, carbs, fats });
   };
 
-  const currentTotalCal = (protein * 4) + (carbs * 4) + (fats * 9);
-  const pPct = Math.round((protein * 4 / calories) * 100);
-  const cPct = Math.round((carbs * 4 / calories) * 100);
-  const fPct = 100 - pPct - cPct; // Ensure it sums to 100 roughly
+  const getMax = (type: 'protein' | 'carbs' | 'fats') => {
+    const multipliers = { protein: 4, carbs: 4, fats: 9 };
+    const others = (['protein', 'carbs', 'fats'] as const).filter(m => m !== type);
+    const othersMinCal = others.reduce((acc, m) => acc + (MIN_VALUE * multipliers[m]), 0);
+    return Math.floor((calories - othersMinCal) / multipliers[type]);
+  };
 
   return (
     <div className="bg-[#1e293b] p-5 rounded-[16px] shadow-xl border border-slate-700/40">
@@ -97,95 +119,71 @@ export default function GoalManager() {
       </div>
 
       <div className="space-y-4">
-        {/* CALORIES */}
+        {/* CALORIES SECTION */}
         <div className="bg-[#0f172a] p-4 rounded-[12px] border border-slate-700/30">
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Daily Calorie Target</p>
           <div className="flex justify-between items-end mb-4">
             <span className="text-lg font-bold text-slate-200">Calories</span>
             <span className="text-2xl font-black text-white">{calories.toLocaleString()} <span className="text-sm text-slate-400">kcal</span></span>
           </div>
-          
           <input 
             type="range" min="1200" max="4000" step="50"
             value={calories}
             onChange={(e) => handleCalorieChange(Number(e.target.value))}
             className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
           />
-          <div className="flex justify-between text-xs text-slate-500 font-mono mt-2">
-            <span>1,200 kcal</span>
-            <span>4,000 kcal</span>
-          </div>
         </div>
 
-        {/* MACROS */}
+        {/* MACROS SECTION */}
         <div className="bg-[#0f172a] p-4 rounded-[12px] border border-slate-700/30">
-          <div className="flex justify-between items-center mb-6 border-b border-slate-700/30 pb-3">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Macro Split</span>
-            <span className={`text-xs font-bold ${Math.abs(currentTotalCal - calories) < 10 ? 'text-emerald-500' : 'text-rose-500'} bg-[#1e293b] px-2.5 py-1 rounded-md border border-slate-700/40`}>
-              {currentTotalCal} / {calories} kcal
-            </span>
-          </div>
-
           <div className="space-y-8">
-            {/* PROTEIN */}
+            {/* Protein Slider */}
             <div>
               <div className="flex justify-between items-center mb-3">
-                <span className="text-lg font-bold text-slate-200">Protein</span>
-                <span className="text-2xl font-black text-white">{protein}g <span className="text-sm text-slate-400">({pPct}%)</span></span>
+                <span className="text-lg font-bold text-slate-200">Protein ({proteinPct}%)</span>
+                <span className="text-2xl font-black text-white">{protein}g</span>
               </div>
               <input 
-                type="range" min="10" max={Math.floor((calories - 40 - 90) / 4)} step="1"
+                type="range" min={MIN_VALUE} max={getMax('protein')} step="1"
                 value={protein}
                 onChange={(e) => handleMacroChange('protein', Number(e.target.value))}
                 className="w-full accent-emerald-500"
               />
-              <div className="flex justify-between text-xs font-mono mt-3 uppercase tracking-wider">
-                <span className="text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-md">{protein * 4} kcal</span>
-                <span className="text-slate-500">{Math.floor((calories - 40 - 90) / 4)}g max</span>
-              </div>
             </div>
 
-            {/* CARBS */}
+            {/* Carbs Slider */}
             <div className="pt-4 border-t border-slate-700/30">
               <div className="flex justify-between items-center mb-3">
-                <span className="text-lg font-bold text-slate-200">Carbs</span>
-                <span className="text-2xl font-black text-white">{carbs}g <span className="text-sm text-slate-400">({cPct}%)</span></span>
+                <span className="text-lg font-bold text-slate-200">Carbs ({carbsPct}%)</span>
+                <span className="text-2xl font-black text-white">{carbs}g</span>
               </div>
               <input 
-                type="range" min="10" max={Math.floor((calories - 40 - 90) / 4)} step="1"
+                type="range" min={MIN_VALUE} max={getMax('carbs')} step="1"
                 value={carbs}
                 onChange={(e) => handleMacroChange('carbs', Number(e.target.value))}
                 className="w-full accent-amber-500"
               />
-              <div className="flex justify-between text-xs font-mono mt-3 uppercase tracking-wider">
-                <span className="text-amber-500 bg-amber-500/10 px-2 py-1 rounded-md">{carbs * 4} kcal</span>
-                <span className="text-slate-500">{Math.floor((calories - 40 - 90) / 4)}g max</span>
-              </div>
             </div>
 
-            {/* FATS */}
+            {/* Fats Slider */}
             <div className="pt-4 border-t border-slate-700/30">
               <div className="flex justify-between items-center mb-3">
-                <span className="text-lg font-bold text-slate-200">Fats</span>
-                <span className="text-2xl font-black text-white">{fats}g <span className="text-sm text-slate-400">({fPct}%)</span></span>
+                <span className="text-lg font-bold text-slate-200">Fats ({fatsPct}%)</span>
+                <span className="text-2xl font-black text-white">{fats}g</span>
               </div>
               <input 
-                type="range" min="10" max={Math.floor((calories - 40 - 40) / 9)} step="1"
+                type="range" min={MIN_VALUE} max={getMax('fats')} step="1"
                 value={fats}
                 onChange={(e) => handleMacroChange('fats', Number(e.target.value))}
                 className="w-full accent-rose-500"
               />
-              <div className="flex justify-between text-xs font-mono mt-3 uppercase tracking-wider">
-                <span className="text-rose-500 bg-rose-500/10 px-2 py-1 rounded-md">{fats * 9} kcal</span>
-                <span className="text-slate-500">{Math.floor((calories - 40 - 40) / 9)}g max</span>
-              </div>
             </div>
           </div>
         </div>
 
         <button 
           onClick={handleSave}
-          className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white font-bold py-4 rounded-[12px] transition-all shadow-lg shadow-emerald-500/20 text-lg active:scale-[0.98]"
+          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-[12px] transition-all text-lg"
         >
           Save Goals
         </button>
